@@ -11,33 +11,9 @@ public:
     int shape_num;
     poker(char shape,int value);
    
-    int getWeight() const {
-        if (value == 1) return 12; // A
-        if (value == 2) return 13; // 2
-        return value - 3;          // 3 變 0, 4 變 1...
-    }
+    int getWeight() const;
 
-    bool operator<(const poker& other) const {
-        if (getWeight() != other.getWeight())
-            return getWeight() < other.getWeight();
-            
-        return shape_num < other.shape_num;
-    }
-};
-class player{//TODO
-public:
-    int id;
-    std::vector<poker> hand_pool;
-    int score;
-    
-    player(int id);
-    std::vector<hand> findAllPairs();
-    void removeCards(const hand& playedHand) {
-        for (const auto& c : playedHand.cards) {
-            // 實作刪除邏輯...
-        }
-    }
-//TODO　出牌 (合法出牌選項)　接收牌　理牌　看牌  回合確定 要分數  
+    bool operator<(const poker& other) const;
 };
 enum class HandType {
     INVALID = 0, SINGLE, PAIR, STRAIGHT, FULL_HOUSE, FOUR_KIND, STRAIGHT_FLUSH
@@ -49,36 +25,26 @@ public:
     HandType type;
     poker keyCard;
 
-    hand(std::vector<poker> selectedCards) : cards(selectedCards) {
-        std::sort(cards.begin(), cards.end()); // 排序後判斷邏輯會變超簡單
-        validate(); 
-    }
-    bool canBeat(const hand& other) const {
-        if (this->type != other.type) return false; // 類型不同不能比（除非你想實作鐵支壓全部）
-        return this->keyCard < other.keyCard;      // 直接利用 Card 寫好的 operator<
-    }
+    hand(std::vector<poker> selectedCards);
+    bool canBeat(const hand& other) const;
 private:
-    void validate() {
-        // 根據 cards.size() 分支判斷單張、對子、或五張牌型
-        // 並找出該牌型的 keyCard
-    }
+    void validate();
+};
+class player{//TODO
+public:
+    int id;
+    std::vector<poker> hand_pool;
+    int score;
+    
+    player(int id);
+    std::vector<hand> findAllPairs();
+    void removeCards(const hand& playedHand);
+//TODO　出牌 (合法出牌選項)　接收牌　理牌　看牌  回合確定 要分數  
 };
 class game_roler{//TODO 玩家註冊給分 比較規則(大小 輔助建議出牌) 流程給chore main 初始化發牌(大池與手牌) 紀錄上一個牌 
 // 核心功能：輸入手牌 + 目標牌型 -> 回傳所有可能的組合
-    static std::vector<hand> findAllValidHands(const std::vector<poker>& myCards, HandType targetType) {
-        std::vector<hand> results;
-        
-        switch (targetType) {
-            case HandType::PAIR:
-                // 執行找對子的邏輯
-                break;
-            case HandType::STRAIGHT:
-                // 執行找順子的邏輯
-                break;
-            // ... 其他牌型
-        }
-        return results;
-    }
+public:
+    static std::vector<hand> findAllValidHands(const std::vector<poker>& myCards, HandType targetType);
     /*遊戲前置作業
 1. 一開始每位玩家所有積分皆為 0。
 2. 玩家數目限定 2~4 人，程式一開始助教要可以輸入人數以及要玩幾輪，除了助教
@@ -124,7 +90,7 @@ pass：跳過，換下一位玩家出牌。
 class auto_player : protected player{
 
 
-} ;
+};
 class poker_pool{
     std::vector<poker> pool;
     std::string shape={'H','D','C','S'};
@@ -141,12 +107,12 @@ public:
 
 };
 class poker_print{
-    std::vector<std::string>pok;
-    std::string pok_shape(char shape,int row);
-    std::string card_row(const class poker::poker& card,int row);
+    static const std::vector<std::string>pok;
+    static std::string pok_shape(char shape,int row);
+    static std::string card_row(const poker& card,int row);
 public:
-    void print_onepok(char a,int v);
-    void print_list(const std::vector<poker>& p,int row);
+    static void print_onepok (char a,int v);
+    static void print_list (const std::vector<poker>& p,int row);
 };
 class chore{
     std::string line;
