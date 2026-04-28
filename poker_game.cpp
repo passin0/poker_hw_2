@@ -6,8 +6,13 @@
 #include<map>
 #include "poker_game.h"
 poker::poker(char shape,int value){
-        poker::shape=shape;
-        poker::value=value;
+        this->shape=shape;
+        this->value=value;
+        //H:heart D:diamond C:clubs S:spades
+        if(shape=='H'){shape_num = 3;}
+        if(shape=='D'){shape_num = 2;}
+        if(shape=='C'){shape_num = 1;}
+        if(shape=='S'){shape_num = 4;}
 };
 bool poker_pool::isshape(char a){
     if (shape.find(a) != std::string::npos) { 

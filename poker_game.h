@@ -8,7 +8,21 @@ class poker{
 public:
     char shape;
     int value;
+    int shape_num;
     poker(char shape,int value);
+   
+    int getWeight() const {
+        if (value == 1) return 12; // A
+        if (value == 2) return 13; // 2
+        return value - 3;          // 3 變 0, 4 變 1...
+    }
+
+    bool operator<(const poker& other) const {
+        if (getWeight() != other.getWeight())
+            return getWeight() < other.getWeight();
+            
+        return shape_num < other.shape_num;
+    }
 };
 class player{//TODO
 public:
@@ -17,10 +31,54 @@ public:
     int score;
     
     player(int id);
+    std::vector<hand> findAllPairs();
+    void removeCards(const hand& playedHand) {
+        for (const auto& c : playedHand.cards) {
+            // 實作刪除邏輯...
+        }
+    }
 //TODO　出牌 (合法出牌選項)　接收牌　理牌　看牌  回合確定 要分數  
 };
+enum class HandType {
+    INVALID = 0, SINGLE, PAIR, STRAIGHT, FULL_HOUSE, FOUR_KIND, STRAIGHT_FLUSH
+};
+
+class hand{
+public:
+    std::vector<poker> cards;
+    HandType type;
+    poker keyCard;
+
+    hand(std::vector<poker> selectedCards) : cards(selectedCards) {
+        std::sort(cards.begin(), cards.end()); // 排序後判斷邏輯會變超簡單
+        validate(); 
+    }
+    bool canBeat(const hand& other) const {
+        if (this->type != other.type) return false; // 類型不同不能比（除非你想實作鐵支壓全部）
+        return this->keyCard < other.keyCard;      // 直接利用 Card 寫好的 operator<
+    }
+private:
+    void validate() {
+        // 根據 cards.size() 分支判斷單張、對子、或五張牌型
+        // 並找出該牌型的 keyCard
+    }
+};
 class game_roler{//TODO 玩家註冊給分 比較規則(大小 輔助建議出牌) 流程給chore main 初始化發牌(大池與手牌) 紀錄上一個牌 
-bool is_biger()  
+// 核心功能：輸入手牌 + 目標牌型 -> 回傳所有可能的組合
+    static std::vector<hand> findAllValidHands(const std::vector<poker>& myCards, HandType targetType) {
+        std::vector<hand> results;
+        
+        switch (targetType) {
+            case HandType::PAIR:
+                // 執行找對子的邏輯
+                break;
+            case HandType::STRAIGHT:
+                // 執行找順子的邏輯
+                break;
+            // ... 其他牌型
+        }
+        return results;
+    }
     /*遊戲前置作業
 1. 一開始每位玩家所有積分皆為 0。
 2. 玩家數目限定 2~4 人，程式一開始助教要可以輸入人數以及要玩幾輪，除了助教
