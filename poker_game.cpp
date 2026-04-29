@@ -5,9 +5,7 @@
 #include<algorithm>
 #include<map>
 #include "poker_game.h"
-poker::poker(char shape,int value){
-        this->shape=shape;
-        this->value=value;
+poker::poker(char shape,int value):shape(shape),value(value){
         //H:heart D:diamond C:clubs S:spades
         if(shape=='H'){shape_num = 3;}
         if(shape=='D'){shape_num = 2;}
@@ -27,21 +25,34 @@ bool poker::operator<(const poker& other) const {
             
     return shape_num < other.shape_num;
 };
-player::player(int id):id(id){
+player::player(int id):id(id),hasClub3(false),score(0){
 
 };
-std::vector<hand> player::findAllPairs(){
-    std::vector<hand> pairs;
-    std::map<int, std::vector<poker>> valueMap;
-    for (const auto& card : hand_pool) {
-        valueMap[card.value].push_back(card);
-    }
-    for (const auto& entry : valueMap) {
-        if (entry.second.size() >= 2) {
-            pairs.emplace_back(hand(std::vector<poker>{entry.second[0], entry.second[1]}));
+
+void player::removeCards(const hand& playedHand) {
+    for (const auto& targetCard : playedHand.cards) {
+        // 使用 std::find_if 或直接 remove_if 找到特定花色與數值的牌並移除
+        auto it = std::find_if(hand_pool.begin(), hand_pool.end(), [&](const poker& c) {
+            return c.value == targetCard.value && c.shape == targetCard.shape;
+        });
+        if (it != hand_pool.end()) {
+            hand_pool.erase(it);
         }
     }
-    return pairs;
+};
+hand auto_player::makeDecision(const hand& lastHand, bool isFirstTurn) {
+    // 1. 取得所有合法的出牌組合
+    std::vector<hand> options = game_roler::getLegalOptions(this->hand_pool, lastHand, isFirstTurn);
+
+    if (options.empty()) return hand({}); 
+
+    // 2. 簡單策略：主動出牌優先出五張牌型，被動出牌出最小的
+    if (lastHand.type == HandType::INVALID) {
+        for (const auto& h : options) {
+            if (h.type >= HandType::STRAIGHT) return h;
+        }
+    }
+    return options[0]; 
 };
 hand::hand(std::vector<poker> selectedCards) : cards(selectedCards), keyCard(selectedCards[0]) {
         std::sort(this->cards.begin(), this->cards.end());
@@ -191,24 +202,15 @@ void hand::validate() {
     type = HandType::INVALID;
 }
 
-void player::removeCards(const hand& playedHand) {
-    for (const auto& c : playedHand.cards) {
-        for (const auto& targetCard : playedHand.cards) {
-        // 使用 std::remove_if 尋找「花色」與「數值」完全相同的牌
-        hand_pool.erase(std::remove_if(hand_pool.begin(), hand_pool.end(),
-            [&](const poker& c) {
-                return c.value == targetCard.value && c.shape == targetCard.shape;
-            }), hand_pool.end());
-    }
-    }
-};
 
+std::map<int, std::vector<poker>> game_roler::groupByValue(const std::vector<poker>& cards) {
+    std::map<int, std::vector<poker>> vMap;
+    for (const auto& c : cards) vMap[c.value].push_back(c);
+    return vMap;
+};
 std::vector<hand> game_roler::findAllValidHands(const std::vector<poker>& myCards, HandType targetType) {
     std::vector<hand> results;
-    if (myCards.empty() || targetType == HandType::INVALID) {
-        return results;
-    }
-
+    auto vMap = groupByValue(myCards);
     std::vector<poker> cards = myCards;
     std::sort(cards.begin(), cards.end());
 
@@ -218,13 +220,8 @@ std::vector<hand> game_roler::findAllValidHands(const std::vector<poker>& myCard
                 results.emplace_back(hand(std::vector<poker>{card}));
             }
             break;
-
         case HandType::PAIR: {
-            std::map<int, std::vector<poker>> valueMap;
-            for (const auto& card : cards) {
-                valueMap[card.value].push_back(card);
-            }
-            for (const auto& entry : valueMap) {
+            for (const auto& entry : vMap) {
                 if (entry.second.size() >= 2) {
                     // 對於每對價值相同的牌，生成所有可能的組合
                     for (size_t i = 0; i < entry.second.size() - 1; ++i) {
@@ -236,29 +233,55 @@ std::vector<hand> game_roler::findAllValidHands(const std::vector<poker>& myCard
             }
             break;
         }
-
         case HandType::STRAIGHT: {
-            // 1. 找出所有連續的 5 個數值序列 (例如: 3,4,5,6,7)
-            // 提示：大老二需特殊處理 A,2 的權重。建議先取 Weight 排序。
-            std::vector<int> weights;
-            for(auto const& [val, group] : vMap) weights.push_back(group[0].getWeight());
-            std::sort(weights.begin(), weights.end());
+        // 1. 取得所有不重複的數字 (Value)，並按「大老二權重」排序
+            std::vector<int> distinctValues;
+            for(auto const& [val, group] : vMap) distinctValues.push_back(val);
+    
+    // 排序邏輯：按 getWeight() 排，這樣 A, 2 會在最後，方便檢查 3-4-5-6-7 或 10-J-Q-K-A
+            std::sort(distinctValues.begin(), distinctValues.end(), [](int a, int b) {
+                poker tempA('S', a), tempB('S', b);
+                return tempA.getWeight() < tempB.getWeight();
+            });
+            if (distinctValues.size() < 5) break;
+    // 2. 檢查所有連續 5 個數字的組合
+            for (size_t i = 0; i <= distinctValues.size() - 5; ++i) {
+                std::vector<poker> testSuite;
+                for(int j=0; j<5; ++j) testSuite.push_back(vMap[distinctValues[i+j]][0]);
 
-            for (size_t i = 0; i <= (weights.size() > 5 ? weights.size() - 5 : 0); ++i) {
-                bool isSeq = true;
-                for (int j = 0; j < 4; ++j) {
-                    if (weights[i+j+1] != weights[i+j] + 1) { isSeq = false; break; }
+        // 直接利用你寫好的 static bool isStraight
+                    if (isStraight(testSuite)) {
+            // 3. 笛卡兒積產生所有花色組合
+                        auto& v1 = vMap[distinctValues[i]];
+                        auto& v2 = vMap[distinctValues[i+1]];
+                        auto& v3 = vMap[distinctValues[i+2]];
+                        auto& v4 = vMap[distinctValues[i+3]];
+                        auto& v5 = vMap[distinctValues[i+4]];
+
+                        for (auto& p1 : v1) {
+                            for (auto& p2 : v2) {
+                                for (auto& p3 : v3) {
+                                    for (auto& p4 : v4) {
+                                        for (auto& p5 : v5) {
+                                            results.emplace_back(std::vector<poker>{p1, p2, p3, p4, p5});
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
-                
-                if (isSeq) {
-                    // 2. 找到數值序列後，對這 5 個數值的對應牌組做「笛卡兒積」
-                    // 這部分通常建議限制只回傳最大花色的那一組，或用遞迴生成全組合
-                    // 這裡為了簡化，示範概念：
-                    // 
+    // 4. 特殊處理 A-2-3-4-5 (因為在 Weight 排序中，3,4,5 在前，A,2 在後)
+            if (vMap.count(1) && vMap.count(2) && vMap.count(3) && vMap.count(4) && vMap.count(5)) {
+        
+                for (auto& p1 : vMap[3]) 
+                for (auto& p2 : vMap[4]) 
+                for (auto& p3 : vMap[5]) 
+                for (auto& p4 : vMap[1]) 
+                for (auto& p5 : vMap[2])
+                    results.emplace_back(std::vector<poker>{p1, p2, p3, p4, p5});
                 }
-            }
-            break;
-        }
+                break;            }
 
         case HandType::FULL_HOUSE: {
             // 先找出所有可能的三條和對子
@@ -327,6 +350,93 @@ std::vector<hand> game_roler::findAllValidHands(const std::vector<poker>& myCard
     }
 
     return results;
+};
+std::vector<hand> game_roler::getLegalOptions(const std::vector<poker>& myCards, const hand& lastHand, bool isFirstTurn) {
+    std::vector<hand> candidates;
+
+    // 1. 根據桌面狀態，先用 findAllValidHands 找出所有「潛在」組合
+    if (lastHand.type == HandType::INVALID) {
+        // 主動出牌：搜尋所有可能的牌型
+        std::vector<HandType> allTypes = { 
+            HandType::SINGLE, HandType::PAIR, HandType::STRAIGHT, 
+            HandType::FULL_HOUSE, HandType::FOUR_KIND, HandType::STRAIGHT_FLUSH 
+        };
+        for (auto t : allTypes) {
+            std::vector<hand> found = findAllValidHands(myCards, t);
+            candidates.insert(candidates.end(), found.begin(), found.end());
+        }
+    } else {
+        // 被動跟牌：找同類型，如果是五張牌型則搜尋更高等級的
+        candidates = findAllValidHands(myCards, lastHand.type);
+        if ((int)lastHand.type >= (int)HandType::STRAIGHT) {
+            for (int t = (int)lastHand.type + 1; t <= (int)HandType::STRAIGHT_FLUSH; ++t) {
+                std::vector<hand> higher = findAllValidHands(myCards, (HandType)t);
+                candidates.insert(candidates.end(), higher.begin(), higher.end());
+            }
+        }
+    }
+
+    // 2. 進行關鍵過濾
+    std::vector<hand> legalOptions;
+    for (const auto& h : candidates) {
+        // A. 檢查是否能壓過對面 (主動出牌時 lastHand 為 INVALID，canBeat 應處理或在此跳過)
+        bool canBeatLast = (lastHand.type == HandType::INVALID) || h.canBeat(lastHand);
+        
+        // B. 檢查「第一回合」規則：組合內必須包含梅花 3
+        
+        bool meetsFirstTurnRule = true;
+        if (isFirstTurn) {
+            bool hasClub3 = game_roler::hasClub3(h.cards);
+            if (!hasClub3) meetsFirstTurnRule = false;
+        }
+
+        if (canBeatLast && meetsFirstTurnRule) {
+            legalOptions.push_back(h);
+        }
+    }
+
+    // 3. 排序選項（從小到大），方便 AI 選擇或人類閱讀
+    std::sort(legalOptions.begin(), legalOptions.end(), [](const hand& a, const hand& b) {
+        return a.keyCard < b.keyCard;
+    });
+
+    return legalOptions;
+}
+bool game_roler::hasClub3(const std::vector<poker>& cards) {
+    for (const auto& c : cards) {
+        if (c.shape == 'C' && c.value == 3) return true;
+    }
+    return false;
+}
+hand interface::selectHandFromOptions(const std::vector<hand>& options, bool canPass) {
+    if (options.empty()) {
+        std::cout << "您沒有合法的牌可以出，強制 PASS。" << std::endl;
+        return hand({});
+    }
+
+    std::cout << "--- 請選擇你要出的牌型 (輸入編號) ---" << std::endl;
+    for (size_t i = 0; i < options.size(); ++i) {
+        std::cout << "[" << i + 1 << "]: ";
+        // 顯示牌型
+        for (const auto& c : options[i].cards) std::cout << c.shape << c.value << " ";
+        std::cout << std::endl;
+    }
+    
+    if (canPass) std::cout << "[0]: PASS" << std::endl;
+
+    int choice;
+    while (true) {
+        std::cout << "輸入編號: ";
+        if (!(std::cin >> choice)) {
+            std::cin.clear();
+            std::cin.ignore(1000, '\n');
+            continue;
+        }
+        if (choice == 0 && canPass) return hand({}); 
+        if (choice > 0 && choice <= (int)options.size()) return options[choice - 1];
+        
+        std::cout << "無效輸入" << (canPass ? "" : " (本回合不可 PASS)") << "，請重試。" << std::endl;
+    }
 };
 bool poker_pool::isshape(char a){
     if (shape.find(a) != std::string::npos) { 

@@ -34,17 +34,26 @@ class player{//TODO
 public:
     int id;
     std::vector<poker> hand_pool;
+    bool hasClub3;
     int score;
     
     player(int id);
-    std::vector<hand> findAllPairs();
+    void getcard(poker card);
+    void sort_cards();
     void removeCards(const hand& playedHand);
 //TODO　出牌 (合法出牌選項)　接收牌　理牌　看牌  回合確定 要分數  
 };
-class game_roler{//TODO 玩家註冊給分 比較規則(大小 輔助建議出牌) 流程給chore main 初始化發牌(大池與手牌) 紀錄上一個牌 
-// 核心功能：輸入手牌 + 目標牌型 -> 回傳所有可能的組合
+class auto_player : public player{
+    auto_player(int id) : player(id) {}
+    hand makeDecision(const hand& lastHand, bool isFirstTurn);
+};
+class game_roler{//TODO 玩家註冊給分 流程給chore main 初始化發牌(大池與手牌) 紀錄上一個牌 
+
 public:
     static std::vector<hand> findAllValidHands(const std::vector<poker>& myCards, HandType targetType);
+    static std::map<int, std::vector<poker>> groupByValue(const std::vector<poker>& cards);
+    static std::vector<hand> getLegalOptions(const std::vector<poker>& myCards, const hand& lastHand, bool isFirstTurn);
+    static bool hasClub3(const std::vector<poker>& cards);
     /*遊戲前置作業
 1. 一開始每位玩家所有積分皆為 0。
 2. 玩家數目限定 2~4 人，程式一開始助教要可以輸入人數以及要玩幾輪，除了助教
@@ -87,14 +96,19 @@ pass：跳過，換下一位玩家出牌。
 同時，依照最後一輪遊戲
 名次比較)*/
 };
-class auto_player : protected player{
+class interface{
+
+public:
+    static hand selectHandFromOptions(const std::vector<hand>& options, bool canPass);
+
 
 
 };
 class poker_pool{
+public:
     std::vector<poker> pool;
     std::string shape={'H','D','C','S'};
-public:
+
     bool isnumber(int a);
     bool isshape(char a);
     void set_shape_pool(const int type);
