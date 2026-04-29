@@ -44,6 +44,7 @@ public:
 //TODO　出牌 (合法出牌選項)　接收牌　理牌　看牌  回合確定 要分數  
 };
 class auto_player : public player{
+public:
     auto_player(int id) : player(id) {}
     hand makeDecision(const hand& lastHand, bool isFirstTurn);
 };

@@ -29,6 +29,19 @@ player::player(int id):id(id),hasClub3(false),score(0){
 
 };
 
+// 接收一張牌卡，加入玩家手牌池
+void player::getcard(poker card) {
+    hand_pool.push_back(card);
+    if (card.shape == 'C' && card.value == 3) {
+        hasClub3 = true;
+    }
+}
+
+// 排序玩家手牌
+void player::sort_cards() {
+    std::sort(hand_pool.begin(), hand_pool.end());
+}
+
 void player::removeCards(const hand& playedHand) {
     for (const auto& targetCard : playedHand.cards) {
         // 使用 std::find_if 或直接 remove_if 找到特定花色與數值的牌並移除
@@ -54,10 +67,13 @@ hand auto_player::makeDecision(const hand& lastHand, bool isFirstTurn) {
     }
     return options[0]; 
 };
-hand::hand(std::vector<poker> selectedCards) : cards(selectedCards), keyCard(selectedCards[0]) {
-        std::sort(this->cards.begin(), this->cards.end());
-        validate();
-};
+hand::hand(std::vector<poker> selectedCards) : cards(selectedCards), type(HandType::INVALID), keyCard('S', 0) {
+    if (cards.empty()) {
+        return; 
+    }
+    std::sort(this->cards.begin(), this->cards.end());
+    validate();
+}
 bool hand::canBeat(const hand& other) const {
         // 1. 如果對方是 INVALID，我方只要合法就能出
     if (other.type == HandType::INVALID) return this->type != HandType::INVALID;
@@ -110,10 +126,6 @@ static bool isStraight(const std::vector<poker>& cards) {
     return true;
 }
 
-static poker highestCard(const std::vector<poker>& cards) {
-    return *std::max_element(cards.begin(), cards.end());
-}
-
 void hand::validate() {
     if (cards.empty()) {
         type = HandType::INVALID;
@@ -151,51 +163,31 @@ void hand::validate() {
         }
 
         bool straight = isStraight(cards);
-        if (straight && flush) {
-            type = HandType::STRAIGHT_FLUSH;
-            keyCard = highestCard(cards);
-            return;
+        if (straight || flush) {
+            type = straight && flush ? HandType::STRAIGHT_FLUSH : (straight ? HandType::STRAIGHT : HandType::INVALID);
+            if (type != HandType::INVALID) {
+                keyCard = cards.back(); // 已經排序過，最後一張就是最大
+                return;
+            }
         }
-
-        if (straight) {
-            type = HandType::STRAIGHT;
-            keyCard = highestCard(cards);
-            return;
-        }
-
+        
         if (counts.size() == 2) {
-            auto iter = counts.begin();
-            int firstCount = iter->second;
-            int firstValue = iter->first;
-            ++iter;
-            int secondCount = iter->second;
-            int secondValue = iter->first;
-
-            if ((firstCount == 4 && secondCount == 1) || (firstCount == 1 && secondCount == 4)) {
-                type = HandType::FOUR_KIND;
-                int fourValue = firstCount == 4 ? firstValue : secondValue;
-                std::vector<poker> fourCards;
-                for (const auto& card : cards) {
-                    if (card.value == fourValue) {
-                        fourCards.push_back(card);
-                    }
-                }
-                keyCard = highestCard(fourCards);
-                return;
+            // 找出數量較多的那個數字作為 keyCard 的依據
+            int mainValue = 0;
+            for (auto const& [val, count] : counts) {
+                if (count >= 3) mainValue = val; 
             }
-
-            if ((firstCount == 3 && secondCount == 2) || (firstCount == 2 && secondCount == 3)) {
-                type = HandType::FULL_HOUSE;
-                int tripleValue = firstCount == 3 ? firstValue : secondValue;
-                std::vector<poker> tripleCards;
-                for (const auto& card : cards) {
-                    if (card.value == tripleValue) {
-                        tripleCards.push_back(card);
-                    }
+            
+            // 從手牌中找出該數字且花色最大的牌
+            poker maxP('C', 0);
+            for (const auto& c : cards) {
+                if (c.value == mainValue) {
+                    if (maxP.value == 0 || maxP < c) maxP = c;
                 }
-                keyCard = highestCard(tripleCards);
-                return;
             }
+            keyCard = maxP;
+            type = (counts.begin()->second == 1 || counts.begin()->second == 4) ? HandType::FOUR_KIND : HandType::FULL_HOUSE;
+            return;
         }
     }
 
@@ -410,11 +402,11 @@ bool game_roler::hasClub3(const std::vector<poker>& cards) {
 }
 hand interface::selectHandFromOptions(const std::vector<hand>& options, bool canPass) {
     if (options.empty()) {
-        std::cout << "您沒有合法的牌可以出，強制 PASS。" << std::endl;
+        std::cout << "You have no legal cards to play, forced PASS." << std::endl;
         return hand({});
     }
 
-    std::cout << "--- 請選擇你要出的牌型 (輸入編號) ---" << std::endl;
+    std::cout << "--- Please select the hand to play (enter number) ---" << std::endl;
     for (size_t i = 0; i < options.size(); ++i) {
         std::cout << "[" << i + 1 << "]: ";
         // 顯示牌型
@@ -426,7 +418,7 @@ hand interface::selectHandFromOptions(const std::vector<hand>& options, bool can
 
     int choice;
     while (true) {
-        std::cout << "輸入編號: ";
+        std::cout << "Enter number: ";
         if (!(std::cin >> choice)) {
             std::cin.clear();
             std::cin.ignore(1000, '\n');
@@ -435,7 +427,7 @@ hand interface::selectHandFromOptions(const std::vector<hand>& options, bool can
         if (choice == 0 && canPass) return hand({}); 
         if (choice > 0 && choice <= (int)options.size()) return options[choice - 1];
         
-        std::cout << "無效輸入" << (canPass ? "" : " (本回合不可 PASS)") << "，請重試。" << std::endl;
+        std::cout << "Invalid input" << (canPass ? "" : " (cannot PASS this turn)") << ", please try again." << std::endl;
     }
 };
 bool poker_pool::isshape(char a){
