@@ -97,14 +97,7 @@ pass：跳過，換下一位玩家出牌。
 同時，依照最後一輪遊戲
 名次比較)*/
 };
-class interface{
 
-public:
-    static hand selectHandFromOptions(const std::vector<hand>& options, bool canPass);
-
-
-
-};
 class poker_pool{
 public:
     std::vector<poker> pool;

@@ -400,36 +400,7 @@ bool game_roler::hasClub3(const std::vector<poker>& cards) {
     }
     return false;
 }
-hand interface::selectHandFromOptions(const std::vector<hand>& options, bool canPass) {
-    if (options.empty()) {
-        std::cout << "You have no legal cards to play, forced PASS." << std::endl;
-        return hand({});
-    }
 
-    std::cout << "--- Please select the hand to play (enter number) ---" << std::endl;
-    for (size_t i = 0; i < options.size(); ++i) {
-        std::cout << "[" << i + 1 << "]: ";
-        // 顯示牌型
-        for (const auto& c : options[i].cards) std::cout << c.shape << c.value << " ";
-        std::cout << std::endl;
-    }
-    
-    if (canPass) std::cout << "[0]: PASS" << std::endl;
-
-    int choice;
-    while (true) {
-        std::cout << "Enter number: ";
-        if (!(std::cin >> choice)) {
-            std::cin.clear();
-            std::cin.ignore(1000, '\n');
-            continue;
-        }
-        if (choice == 0 && canPass) return hand({}); 
-        if (choice > 0 && choice <= (int)options.size()) return options[choice - 1];
-        
-        std::cout << "Invalid input" << (canPass ? "" : " (cannot PASS this turn)") << ", please try again." << std::endl;
-    }
-};
 bool poker_pool::isshape(char a){
     if (shape.find(a) != std::string::npos) { 
     return true;
